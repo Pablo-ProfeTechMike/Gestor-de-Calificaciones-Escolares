@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Registro de Calificaciones</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Font Family -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- html2pdf.js library for high quality PDF downloads -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Transiciones suaves */
+        .transition-all-300 {
+            transition: all 0.3s ease;
+        }
+        /* Ocultar flechas en inputs numéricos */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* Estilos de impresión exactos */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printModalContainer, #printModalContainer * {
+                visibility: visible;
+            }
+            #printModalContainer {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: auto;
+                background: white;
+                box-shadow: none !important;
+            }
+            .modal-no-print {
+                display: none !important;
+            }
+            #credentialPrintPreview {
+                box-shadow: none !important;
+                border: 1px solid #cbd5e1 !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-12">
+
+    <header class="bg-indigo-600 text-white shadow-md no-print mb-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-indigo-500/50 rounded-lg">
+                    <i data-lucide="graduation-cap" class="w-8 h-8 text-indigo-100"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold leading-tight">Control Académico</h1>
+                    <p class="text-xs text-indigo-200">Registro y Cálculo de Promedios</p>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="resetearTodo()" class="px-3 py-2 bg-indigo-700 hover:bg-indigo-800 text-xs font-medium rounded-lg flex items-center gap-1.5 transition">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Reiniciar
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 no-print">
+            <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                <i data-lucide="sliders" class="w-5 h-5 text-indigo-600"></i>
+                Configuración del Registro
+            </h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div>
+                    <label for="educationLevel" class="block text-xs font-semibold uppercase text-slate-500 mb-1">Nivel Educativo</label>
+                    <select id="educationLevel" onchange="cambiarNivelEducativo()"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition font-medium text-slate-700 bg-white">
+                        <option value="Primaria">Primaria (Bloques)</option>
+                        <option value="Secundaria">Secundaria (Bloques)</option>
+                        <option value="Preparatoria" selected>Preparatoria (Parciales)</option>
+                        <option value="Universidad">Universidad (Parciales)</option>
+                    </select>
+                </div>
+
+                <!-- Campo dinámico para Grado / Carrera / Modalidad -->
+                <div id="subLevelContainer">
+                    <label id="lblSubLevel" for="subLevelSelect" class="block text-xs font-semibold uppercase text-slate-500 mb-1">Grado / Modalidad</label>
+                    <div id="subLevelField">
+                        <!-- Generado dinámicamente por JS -->
+                    </div>
+                </div>
+
+                <div>
+                    <label for="studentName" class="block text-xs font-semibold uppercase text-slate-500 mb-1">Nombre del Estudiante</label>
+                    <input type="text" id="studentName" placeholder="Ej. Juan Pérez" value="Juan Pérez"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition"
+                        oninput="actualizarGeneral()">
+                </div>
+                <div>
+                    <label for="numSubjects" class="block text-xs font-semibold uppercase text-slate-500 mb-1">Número de Materias</label>
+                    <input type="number" id="numSubjects" min="1" max="15" value="5"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition"
+                        onchange="reconstruirTabla()">
+                </div>
+                <div>
+                    <label id="lblNumPeriods" for="numPeriods" class="block text-xs font-semibold uppercase text-slate-500 mb-1">Número de Parciales</label>
+                    <input type="number" id="numPeriods" min="1" max="6" value="3"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition"
+                        onchange="reconstruirTabla()">
+                </div>
+                <div>
+                    <label for="minPassing" class="block text-xs font-semibold uppercase text-slate-500 mb-1">Mínimo Aprobatorio</label>
+                    <input type="number" id="minPassing" min="0" max="10" step="0.5" value="6.0"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition"
+                        onchange="actualizarGeneral()">
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden no-print">
+            <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                        <i data-lucide="edit-3" class="w-5 h-5 text-indigo-600"></i>
+                        Capture de Calificaciones
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">Ingresa las notas de 0 a 10 para cada parcial. Los promedios se calculan automáticamente.</p>
+                </div>
+                <button onclick="generarTarjeta()" class="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm flex items-center justify-center gap-2 transition hover:shadow">
+                    <i data-lucide="file-check" class="w-4 h-4"></i> Generar Boleta de Calificaciones
+                </button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr id="tableHeader" class="bg-slate-50 text-slate-600 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
+                            <!-- Inyectado por JS -->
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-slate-100 text-sm">
+                        <!-- Inyectado por JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div id="alertBox" class="hidden no-print bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3 text-amber-800 text-sm">
+            <i data-lucide="alert-circle" class="w-5 h-5 text-amber-600 shrink-0"></i>
+            <span id="alertText">Por favor completa todas las calificaciones válidas.</span>
+        </div>
+
+        <section id="cardContainer" class="hidden transition-all-300">
+            <h2 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2 no-print">
+                <i data-lucide="id-card" class="w-6 h-6 text-indigo-600"></i>
+                Credenciales Generadas
+            </h2>
+            <div id="credentialsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Tarjetas de Credencial Escolar inyectadas por JS -->
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // Nombres predeterminados para las materias iniciales según el nivel
+        const subjectsByLevel = {
+            Primaria: ["Español", "Matemáticas", "Ciencias Naturales", "Geografía", "Historia", "Educación Física"],
+            Secundaria: ["Español", "Matemáticas", "Biología", "Historia", "Inglés", "Química", "Formación Cívica"],
+            Preparatoria: ["Matemáticas", "Español", "Física", "Historia", "Inglés", "Química", "Filosofía"],
+            Universidad: ["Cálculo", "Programación", "Estadística", "Metodología de Investigación", "Proyecto Final"]
+        };
+
+        // Estado global de la aplicación
+        let state = {
+            educationLevel: "Preparatoria",
+            subLevelDetail: "General (4º Semestre)", // Detalle específico (Grado/Carrera/Semestre/Cuatrimestre)
+            studentName: "Juan Pérez",
+            numSubjects: 5,
+            numPeriods: 3,
+            minPassing: 6.0,
+            subjects: [],
+            credentials: [] // Historial de credenciales generadas
+        };
+
+        // Inicialización al cargar la ventana
+        window.onload = function() {
+            lucide.createIcons();
+            cargarEstadoInicial();
+            renderSubLevelInputs();
+            actualizarEtiquetasTerminologia();
+            reconstruirTabla();
+            renderCredentials();
+        };
+
+        function cargarEstadoInicial() {
+            const saved = localStorage.getItem('calificaciones_data');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    state = { ...state, ...parsed };
+                    if (!state.credentials) state.credentials = [];
+                    if (!state.educationLevel) state.educationLevel = "Preparatoria";
+                    if (!state.subLevelDetail) state.subLevelDetail = "General (1º Semestre)";
+                    
+                    document.getElementById('educationLevel').value = state.educationLevel;
+                    document.getElementById('studentName').value = state.studentName || '';
+                    document.getElementById('numSubjects').value = state.numSubjects || 5;
+                    document.getElementById('numPeriods').value = state.numPeriods || 3;
+                    document.getElementById('minPassing').value = state.minPassing || 6.0;
+                } catch(e) {
+                    console.error("Error al cargar datos guardados:", e);
+                }
+            }
+        }
+
+        function renderSubLevelInputs() {
+            const container = document.getElementById('subLevelField');
+            const label = document.getElementById('lblSubLevel');
+            if (!container) return;
+
+            const level = state.educationLevel;
+
+            if (level === "Primaria") {
+                label.innerText = "Grado Escolar";
+                container.innerHTML = `
+                    <select id="subLevelSelect" onchange="actualizarSubNivel()"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition font-medium text-slate-700 bg-white">
+                        <option value="1º Grado">1º Año (Primaria)</option>
+                        <option value="2º Grado">2º Año (Primaria)</option>
+                        <option value="3º Grado">3º Año (Primaria)</option>
+                        <option value="4º Grado">4º Año (Primaria)</option>
+                        <option value="5º Grado">5º Año (Primaria)</option>
+                        <option value="6º Grado">6º Año (Primaria)</option>
+                    </select>
+                `;
+            } else if (level === "Secundaria") {
+                label.innerText = "Grado Escolar";
+                container.innerHTML = `
+                    <select id="subLevelSelect" onchange="actualizarSubNivel()"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition font-medium text-slate-700 bg-white">
+                        <option value="1º Secundaria">1º Año (Secundaria)</option>
+                        <option value="2º Secundaria">2º Año (Secundaria)</option>
+                        <option value="3º Secundaria">3º Año (Secundaria)</option>
+                    </select>
+                `;
+            } else if (level === "Preparatoria") {
+                label.innerText = "Modalidad / Periodo";
+                container.innerHTML = `
+                    <div class="flex gap-1.5">
+                        <select id="prepType" onchange="actualizarSubNivel()" class="w-1/2 px-2 py-2 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 bg-white outline-none focus:ring-1 focus:ring-indigo-500">
+                            <option value="General">General / Normal</option>
+                            <option value="Técnica">Técnica / Carrera</option>
+                        </select>
+                        <select id="prepPeriod" onchange="actualizarSubNivel()" class="w-1/2 px-2 py-2 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 bg-white outline-none focus:ring-1 focus:ring-indigo-500">
+                            <option value="1º Semestre">1º Semestre</option>
+                            <option value="2º Semestre">2º Semestre</option>
+                            <option value="3º Semestre">3º Semestre</option>
+                            <option value="4º Semestre">4º Semestre</option>
+                            <option value="5º Semestre">5º Semestre</option>
+                            <option value="6º Semestre">6º Semestre</option>
+                        </select>
+                    </div>
+                `;
+            } else if (level === "Universidad") {
+                label.innerText = "Carrera y Periodo";
+                container.innerHTML = `
+                    <div class="space-y-1">
+                        <input type="text" id="uniCareer" placeholder="Ej. Ing. en Sistemas" value="Ingeniería / Licenciatura"
+                            oninput="actualizarSubNivel()"
+                            class="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500">
+                        <div class="flex gap-1">
+                            <select id="uniSystem" onchange="actualizarSubNivel()" class="w-1/2 px-2 py-1 border border-slate-300 rounded-lg text-xs bg-white outline-none">
+                                <option value="Semestre">Semestre</option>
+                                <option value="Cuatrimestre">Cuatrimestre</option>
+                            </select>
+                            <select id="uniNumber" onchange="actualizarSubNivel()" class="w-1/2 px-2 py-1 border border-slate-300 rounded-lg text-xs bg-white outline-none">
+                                ${Array.from({length: 12}, (_, i) => `<option value="${i+1}º">${i+1}º Periodo</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                `;
+            }
+
+            actualizarSubNivel();
+        }
+
+        function actualizarSubNivel() {
+            const level = state.educationLevel;
+            if (level === "Primaria" || level === "Secundaria") {
+                const sel = document.getElementById('subLevelSelect');
+                if (sel) state.subLevelDetail = sel.value;
+            } else if (level === "Preparatoria") {
+                const prepType = document.getElementById('prepType')?.value || "General";
+                const prepPeriod = document.getElementById('prepPeriod')?.value || "1º Semestre";
+                state.subLevelDetail = `${prepType} (${prepPeriod})`;
+            } else if (level === "Universidad") {
+                const career = document.getElementById('uniCareer')?.value.trim() || "Carrera";
+                const system = document.getElementById('uniSystem')?.value || "Semestre";
+                const num = document.getElementById('uniNumber')?.value || "1º";
+                state.subLevelDetail = `${career} - ${num} ${system}`;
+            }
+            guardarEnStorage();
+        }
+
+        function obtenerTerminoPeriodo() {
+            return (state.educationLevel === "Primaria" || state.educationLevel === "Secundaria") ? "Bloque" : "Parcial";
+        }
+
+        function actualizarEtiquetasTerminologia() {
+            const termino = obtenerTerminoPeriodo();
+            const lblNumPeriods = document.getElementById('lblNumPeriods');
+            if (lblNumPeriods) {
+                lblNumPeriods.innerText = `Número de ${termino}s`;
+            }
+        }
+
+        function cambiarNivelEducativo() {
+            const levelSelect = document.getElementById('educationLevel').value;
+            state.educationLevel = levelSelect;
+            
+            // Ajustar automáticamente materias y número de periodos sugeridos
+            const defaultList = subjectsByLevel[levelSelect] || subjectsByLevel.Preparatoria;
+            state.numSubjects = defaultList.length;
+            document.getElementById('numSubjects').value = state.numSubjects;
+
+            if (levelSelect === "Primaria" || levelSelect === "Secundaria") {
+                state.numPeriods = 3;
+            } else {
+                state.numPeriods = 3;
+            }
+            document.getElementById('numPeriods').value = state.numPeriods;
+
+            // Reemplazar materias por las predeterminadas del nuevo nivel
+            state.subjects = defaultList.map(name => ({
+                name: name,
+                grades: new Array(state.numPeriods).fill('')
+            }));
+
+            renderSubLevelInputs();
+            actualizarEtiquetasTerminologia();
+            reconstruirTabla();
+        }
+
+        function guardarEnStorage() {
+            localStorage.setItem('calificaciones_data', JSON.stringify(state));
+        }
+
+        function reconstruirTabla() {
+            const studentInput = document.getElementById('studentName').value.trim();
+            const numSub = parseInt(document.getElementById('numSubjects').value) || 1;
+            const numPer = parseInt(document.getElementById('numPeriods').value) || 1;
+            const minPass = parseFloat(document.getElementById('minPassing').value) || 6.0;
+
+            state.studentName = studentInput || "Estudiante sin Nombre";
+            state.numSubjects = Math.max(1, Math.min(15, numSub));
+            state.numPeriods = Math.max(1, Math.min(6, numPer));
+            state.minPassing = minPass;
+
+            const defaultList = subjectsByLevel[state.educationLevel] || subjectsByLevel.Preparatoria;
+
+            // Ajustar materias en el estado
+            const newSubjects = [];
+            for (let i = 0; i < state.numSubjects; i++) {
+                const existing = state.subjects[i];
+                const subjectName = existing ? existing.name : (defaultList[i] || `Materia ${i + 1}`);
+                const grades = [];
+
+                for (let j = 0; j < state.numPeriods; j++) {
+                    const val = (existing && existing.grades[j] !== undefined) ? existing.grades[j] : '';
+                    grades.push(val);
+                }
+
+                newSubjects.push({
+                    name: subjectName,
+                    grades: grades
+                });
+            }
+            state.subjects = newSubjects;
+
+            renderHeader();
+            renderBody();
+            guardarEnStorage();
+        }
+
+        function renderHeader() {
+            const thead = document.getElementById('tableHeader');
+            const termino = obtenerTerminoPeriodo();
+            let html = `
+                <th scope="col" class="px-6 py-4">Materia</th>
+            `;
+            
+            for (let i = 1; i <= state.numPeriods; i++) {
+                html += `<th scope="col" class="px-4 py-4 text-center">${i}° ${termino}</th>`;
+            }
+
+            html += `
+                <th scope="col" class="px-6 py-4 text-center">Promedio</th>
+                <th scope="col" class="px-6 py-4 text-center">Estado</th>
+            `;
+            thead.innerHTML = html;
+        }
+
+        function renderBody() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            state.subjects.forEach((sub, subIdx) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/80 transition-colors";
+
+                // Columna Nombre Materia
+                let rowHtml = `
+                    <td class="px-6 py-3 font-medium text-slate-800">
+                        <input type="text" value="${sub.name}" 
+                            onchange="actualizarNombreMateria(${subIdx}, this.value)"
+                            class="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:bg-white px-2 py-1 rounded outline-none transition font-medium"
+                            placeholder="Nombre materia">
+                    </td>
+                `;
+
+                // Columnas Parciales / Bloques
+                sub.grades.forEach((grade, perIdx) => {
+                    rowHtml += `
+                        <td class="px-4 py-3 text-center">
+                            <input type="number" step="0.1" min="0" max="10" 
+                                value="${grade !== '' ? grade : ''}" 
+                                placeholder="0.0"
+                                oninput="actualizarCalificacion(${subIdx}, ${perIdx}, this.value)"
+                                class="w-16 text-center mx-auto px-2 py-1.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition font-semibold text-slate-700">
+                        </td>
+                    `;
+                });
+
+                // Promedio individual
+                const prom = calcularPromedioMateria(sub.grades);
+                const isPassed = prom >= state.minPassing;
+                const badgeColor = prom === null ? 'bg-slate-100 text-slate-400' :
+                                  (isPassed ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-rose-100 text-rose-800 border-rose-200');
+
+                rowHtml += `
+                    <td class="px-6 py-3 text-center font-bold text-base text-slate-700">
+                        ${prom !== null ? prom.toFixed(1) : '-'}
+                    </td>
+                    <td class="px-6 py-3 text-center">
+                        <span class="inline-block px-2.5 py-1 text-xs font-semibold rounded-full border ${badgeColor}">
+                            ${prom === null ? 'Sin datos' : (isPassed ? 'Aprobado' : 'Reprobado')}
+                        </span>
+                    </td>
+                `;
+
+                tr.innerHTML = rowHtml;
+                tbody.appendChild(tr);
+            });
+
+            lucide.createIcons();
+        }
+
+        function actualizarNombreMateria(subIdx, name) {
+            state.subjects[subIdx].name = name.trim() || `Materia ${subIdx + 1}`;
+            guardarEnStorage();
+        }
+
+        function actualizarCalificacion(subIdx, perIdx, val) {
+            let numVal = parseFloat(val);
+            if (isNaN(numVal)) {
+                state.subjects[subIdx].grades[perIdx] = '';
+            } else {
+                numVal = Math.max(0, Math.min(10, numVal));
+                state.subjects[subIdx].grades[perIdx] = numVal;
+            }
+            renderBody();
+            guardarEnStorage();
+        }
+
+        function actualizarGeneral() {
+            state.studentName = document.getElementById('studentName').value.trim();
+            state.minPassing = parseFloat(document.getElementById('minPassing').value) || 6.0;
+            renderBody();
+            guardarEnStorage();
+        }
+
+        function calcularPromedioMateria(grades) {
+            const validGrades = grades.filter(g => g !== '' && g !== null && !isNaN(g));
+            if (validGrades.length === 0) return null;
+            const sum = validGrades.reduce((acc, curr) => acc + parseFloat(curr), 0);
+            return sum / validGrades.length;
+        }
+
+        function calcularPromedioGeneral() {
+            let totalSum = 0;
+            let totalCount = 0;
+
+            state.subjects.forEach(sub => {
+                const p = calcularPromedioMateria(sub.grades);
+                if (p !== null) {
+                    totalSum += p;
+                    totalCount++;
+                }
+            });
+
+            if (totalCount === 0) return null;
+            return totalSum / totalCount;
+        }
+
+        function generarTarjeta() {
+            const alertBox = document.getElementById('alertBox');
+            
+            // Validar si hay calificaciones cargadas
+            const promGeneral = calcularPromedioGeneral();
+            if (promGeneral === null) {
+                alertBox.classList.remove('hidden');
+                document.getElementById('alertText').innerText = "Por favor ingresa al menos una calificación para generar la credencial.";
+                return;
+            } else {
+                alertBox.classList.add('hidden');
+            }
+
+            // Preparar objeto de la nueva credencial
+            const hoy = new Date();
+            const dateStr = hoy.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' });
+            
+            const subjectsSummary = state.subjects.map(sub => {
+                const prom = calcularPromedioMateria(sub.grades);
+                return {
+                    name: sub.name,
+                    avg: prom !== null ? prom.toFixed(1) : 'N/A',
+                    isPassed: prom !== null && prom >= state.minPassing
+                };
+            });
+
+            const newCredential = {
+                id: Date.now(),
+                studentName: state.studentName || "Estudiante",
+                educationLevel: state.educationLevel,
+                subLevelDetail: state.subLevelDetail || "General",
+                periodType: obtenerTerminoPeriodo(),
+                date: dateStr,
+                subjects: subjectsSummary,
+                finalAvg: promGeneral.toFixed(1),
+                isPassed: promGeneral >= state.minPassing,
+                minPassing: state.minPassing
+            };
+
+            // Guardar credencial en el estado
+            state.credentials.unshift(newCredential);
+
+            // Limpiar calificaciones ingresadas dejando los datos para el siguiente registro
+            limpiarCaptura();
+
+            renderCredentials();
+            guardarEnStorage();
+
+            // Desplazar vista suavemente a la credencial recién creada
+            const container = document.getElementById('cardContainer');
+            container.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function limpiarCaptura() {
+            // Limpia las calificaciones de la tabla actual pero conserva la lista de materias y configuración
+            state.subjects.forEach(sub => {
+                sub.grades = sub.grades.map(() => '');
+            });
+            renderBody();
+        }
+
+        function renderCredentials() {
+            const container = document.getElementById('cardContainer');
+            const grid = document.getElementById('credentialsGrid');
+            grid.innerHTML = '';
+
+            if (state.credentials.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+
+            state.credentials.forEach(cred => {
+                const isPassed = cred.isPassed;
+                const headerBg = isPassed ? 'bg-gradient-to-r from-emerald-600 to-teal-700' : 'bg-gradient-to-r from-rose-600 to-red-700';
+                const statusBadgeBg = isPassed ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-100 text-rose-800 border-rose-300';
+                const scoreTextColor = isPassed ? 'text-emerald-600' : 'text-rose-600';
+
+                let subjectsHtml = cred.subjects.map(sub => {
+                    const subBadgeClass = sub.avg === 'N/A' ? 'bg-slate-100 text-slate-500' : (sub.isPassed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800');
+                    const subScoreClass = sub.avg === 'N/A' ? 'text-slate-400' : (sub.isPassed ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold');
+                    
+                    return `
+                        <div class="flex justify-between items-center py-1 px-2 rounded bg-slate-50 hover:bg-slate-100 text-xs">
+                            <span class="truncate font-medium text-slate-700 max-w-[140px]">${sub.name}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="${subScoreClass}">${sub.avg}</span>
+                                <span class="text-[9px] px-1.5 py-0.5 rounded font-bold ${subBadgeClass}">
+                                    ${sub.avg === 'N/A' ? '-' : (sub.isPassed ? 'APR' : 'REP')}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                const cardHtml = `
+                    <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden relative flex flex-col justify-between hover:shadow-xl transition-all">
+                        
+                        <!-- Encabezado Estilo Credencial Escolar -->
+                        <div class="${headerBg} text-white p-4 relative">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <div class="flex flex-wrap items-center gap-1.5 mb-1">
+                                        <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-white/20 backdrop-blur-sm border border-white/20 text-white shadow-sm">
+                                            🎓 ${cred.educationLevel || 'General'}
+                                        </span>
+                                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-black/20 text-indigo-100">
+                                            ${cred.subLevelDetail || ''}
+                                        </span>
+                                    </div>
+                                    <h3 class="text-lg font-extrabold tracking-wide mt-1 truncate max-w-[200px]">${cred.studentName}</h3>
+                                </div>
+                                <div class="bg-white/20 backdrop-blur-md p-1.5 rounded-lg shrink-0">
+                                    <i data-lucide="graduation-cap" class="w-6 h-6 text-white"></i>
+                                </div>
+                            </div>
+                            <div class="mt-2 flex justify-between items-center text-[11px] text-white/90 font-medium">
+                                <span>Emisión: ${cred.date}</span>
+                                <span class="bg-white/20 px-2 py-0.5 rounded-full text-[10px]">ID: #${cred.id.toString().slice(-4)}</span>
+                            </div>
+                        </div>
+
+                        <!-- Contenido / Foto ficticia + Lista de materias -->
+                        <div class="p-4 space-y-3 flex-1">
+                            <div class="flex items-center gap-3 pb-3 border-b border-slate-100">
+                                <div class="w-12 h-12 rounded-full bg-slate-100 border-2 border-indigo-200 flex items-center justify-center shrink-0 text-slate-400">
+                                    <i data-lucide="user" class="w-7 h-7"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="text-[10px] font-bold uppercase text-slate-400">Estatus del Ciclo</p>
+                                    <span class="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border mt-0.5 ${statusBadgeBg}">
+                                        <i data-lucide="${isPassed ? 'check-circle' : 'x-circle'}" class="w-3.5 h-3.5"></i>
+                                        ${isPassed ? 'APROBADO GENERAL' : 'REPROBADO GENERAL'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Desglose por Materias -->
+                            <div>
+                                <p class="text-[10px] font-bold uppercase text-slate-400 mb-1.5">Promedio por Materia</p>
+                                <div class="space-y-1 max-h-36 overflow-y-auto pr-1">
+                                    ${subjectsHtml}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pie de la Credencial / Promedio Final -->
+                        <div class="bg-slate-50 border-t border-slate-100 p-4 flex justify-between items-center">
+                            <div>
+                                <p class="text-[10px] font-bold uppercase text-slate-400">Promedio General</p>
+                                <span class="text-2xl font-black ${scoreTextColor}">${cred.finalAvg}</span>
+                            </div>
+                            <div class="flex gap-1.5 no-print">
+                                <button onclick="abrirModalImpresion(${cred.id})" title="Vista previa e Imprimir / Descargar PDF" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-medium text-xs rounded-lg transition flex items-center gap-1">
+                                    <i data-lucide="printer" class="w-4 h-4"></i> Imprimir / PDF
+                                </button>
+                                <button onclick="eliminarCredencial(${cred.id})" title="Eliminar credencial" class="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                `;
+
+                const cardWrapper = document.createElement('div');
+                cardWrapper.innerHTML = cardHtml;
+                grid.appendChild(cardWrapper.firstElementChild);
+            });
+
+            lucide.createIcons();
+        }
+
+        function eliminarCredencial(id) {
+            state.credentials = state.credentials.filter(c => c.id !== id);
+            guardarEnStorage();
+            renderCredentials();
+        }
+
+        // ID de credencial activa para impresión
+        let activePrintId = null;
+
+        function abrirModalImpresion(id) {
+            activePrintId = id;
+            const cred = state.credentials.find(c => c.id === id);
+            if (!cred) return;
+
+            // Renderizar la credencial dentro de la ventana modal
+            const isPassed = cred.isPassed;
+            const headerBg = isPassed ? 'bg-gradient-to-r from-emerald-600 to-teal-700' : 'bg-gradient-to-r from-rose-600 to-red-700';
+            const statusBadgeBg = isPassed ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-100 text-rose-800 border-rose-300';
+            const scoreTextColor = isPassed ? 'text-emerald-600' : 'text-rose-600';
+
+            let subjectsHtml = cred.subjects.map(sub => {
+                const subBadgeClass = sub.avg === 'N/A' ? 'bg-slate-100 text-slate-500' : (sub.isPassed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800');
+                const subScoreClass = sub.avg === 'N/A' ? 'text-slate-400' : (sub.isPassed ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold');
+                
+                return `
+                    <div class="flex justify-between items-center py-1 px-2 rounded bg-slate-50 border border-slate-100 text-xs">
+                        <span class="truncate font-medium text-slate-700 max-w-[150px]">${sub.name}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="${subScoreClass}">${sub.avg}</span>
+                            <span class="text-[9px] px-1.5 py-0.5 rounded font-bold ${subBadgeClass}">
+                                ${sub.avg === 'N/A' ? '-' : (sub.isPassed ? 'APR' : 'REP')}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const modalContent = `
+                <div id="credentialPrintPreview" class="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden relative flex flex-col justify-between transition-all mx-auto" style="width: 350px; transform-origin: top center;">
+                    <!-- Encabezado Estilo Credencial Escolar -->
+                    <div class="${headerBg} text-white p-4 relative">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <div class="flex flex-wrap items-center gap-1.5 mb-1">
+                                    <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-white/20 backdrop-blur-sm border border-white/20 text-white shadow-sm">
+                                        🎓 ${cred.educationLevel || 'General'}
+                                    </span>
+                                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-black/20 text-indigo-100">
+                                        ${cred.subLevelDetail || ''}
+                                    </span>
+                                </div>
+                                <h3 class="text-lg font-extrabold tracking-wide mt-1 truncate max-w-[210px]">${cred.studentName}</h3>
+                            </div>
+                            <div class="bg-white/20 backdrop-blur-md p-1.5 rounded-lg shrink-0">
+                                <i data-lucide="graduation-cap" class="w-6 h-6 text-white"></i>
+                            </div>
+                        </div>
+                        <div class="mt-2 flex justify-between items-center text-[11px] text-white/90 font-medium">
+                            <span>Emisión: ${cred.date}</span>
+                            <span class="bg-white/20 px-2 py-0.5 rounded-full text-[10px]">ID: #${cred.id.toString().slice(-4)}</span>
+                        </div>
+                    </div>
+
+                    <!-- Contenido / Estudiante + Materias -->
+                    <div class="p-4 space-y-3 flex-1 bg-white">
+                        <div class="flex items-center gap-3 pb-3 border-b border-slate-100">
+                            <div class="w-12 h-12 rounded-full bg-slate-100 border-2 border-indigo-200 flex items-center justify-center shrink-0 text-slate-400">
+                                <i data-lucide="user" class="w-7 h-7"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-[10px] font-bold uppercase text-slate-400">Estatus Escolar</p>
+                                <span class="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border mt-0.5 ${statusBadgeBg}">
+                                    <i data-lucide="${isPassed ? 'check-circle' : 'x-circle'}" class="w-3.5 h-3.5"></i>
+                                    ${isPassed ? 'APROBADO GENERAL' : 'REPROBADO GENERAL'}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Desglose por Materias -->
+                        <div>
+                            <p class="text-[10px] font-bold uppercase text-slate-400 mb-1.5">Promedio por Materia</p>
+                            <div class="space-y-1 max-h-44 overflow-y-auto pr-1">
+                                ${subjectsHtml}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pie de la Credencial -->
+                    <div class="bg-slate-50 border-t border-slate-100 p-4 flex justify-between items-center">
+                        <div>
+                            <p class="text-[10px] font-bold uppercase text-slate-400">Promedio General</p>
+                            <span class="text-2xl font-black ${scoreTextColor}">${cred.finalAvg}</span>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[9px] font-semibold text-slate-400 uppercase">Validez Académica</p>
+                            <span class="text-[11px] font-bold text-slate-600">DOCUMENTO OFICIAL</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('modalPreviewContainer').innerHTML = modalContent;
+            document.getElementById('sizeSlider').value = 350;
+            document.getElementById('sizeValueText').innerText = "350px";
+            
+            // Mostrar modal
+            const modal = document.getElementById('printModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            lucide.createIcons();
+        }
+
+        function cambiarTamanoCredencial(ancho) {
+            const card = document.getElementById('credentialPrintPreview');
+            if (card) {
+                card.style.width = `${ancho}px`;
+                document.getElementById('sizeValueText').innerText = `${ancho}px`;
+            }
+        }
+
+        function cerrarModalImpresion() {
+            const modal = document.getElementById('printModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function ejecutarImpresionModal() {
+            window.print();
+        }
+
+        function descargarPDF() {
+            const element = document.getElementById('credentialPrintPreview');
+            const cred = state.credentials.find(c => c.id === activePrintId);
+            const studentName = cred ? cred.studentName.replace(/\s+/g, '_') : 'credencial';
+
+            // Opciones de configuración para generar el PDF de alta calidad
+            const opt = {
+                margin:       10,
+                filename:     `Credencial_${studentName}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save();
+        }
+
+        function resetearTodo() {
+            if (confirm("¿Estás seguro de que deseas borrar todos los registros e historial de credenciales?")) {
+                localStorage.removeItem('calificaciones_data');
+                state = {
+                    educationLevel: "Preparatoria",
+                    subLevelDetail: "General (1º Semestre)",
+                    studentName: "Juan Pérez",
+                    numSubjects: 5,
+                    numPeriods: 3,
+                    minPassing: 6.0,
+                    subjects: [],
+                    credentials: []
+                };
+                document.getElementById('educationLevel').value = state.educationLevel;
+                document.getElementById('studentName').value = state.studentName;
+                document.getElementById('numSubjects').value = state.numSubjects;
+                document.getElementById('numPeriods').value = state.numPeriods;
+                document.getElementById('minPassing').value = state.minPassing;
+                renderSubLevelInputs();
+                actualizarEtiquetasTerminologia();
+                reconstruirTabla();
+                renderCredentials();
+            }
+        }
+    </script>
+</body>
+</html>
+    <!-- Modal de Vista Previa, Ajuste de Tamaño e Impresión / Exportación PDF -->
+    <div id="printModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4 overflow-y-auto no-print">
+        <div id="printModalContainer" class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden my-auto flex flex-col max-h-[90vh]">
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 bg-slate-800 text-white flex justify-between items-center modal-no-print">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="printer" class="w-5 h-5 text-indigo-400"></i>
+                    <h3 class="font-bold text-base">Vista Previa y Ajustes de Impresión</h3>
+                </div>
+                <button onclick="cerrarModalImpresion()" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body / Visualizador y Controles -->
+            <div class="p-6 overflow-y-auto space-y-6 flex-1 bg-slate-50/50">
+                
+                <!-- Selector de Tamaño de Credencial -->
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm modal-no-print">
+                    <div class="flex justify-between items-center mb-2">
+                        <label for="sizeSlider" class="text-xs font-bold uppercase text-slate-600 flex items-center gap-1.5">
+                            <i data-lucide="scaling" class="w-4 h-4 text-indigo-600"></i>
+                            Ajustar Ancho de Credencial:
+                        </label>
+                        <span id="sizeValueText" class="text-xs font-bold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md">350px</span>
+                    </div>
+                    <input type="range" id="sizeSlider" min="260" max="500" step="10" value="350"
+                        oninput="cambiarTamanoCredencial(this.value)"
+                        class="w-full accent-indigo-600 cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-slate-400 mt-1">
+                        <span>Compacto (260px)</span>
+                        <span>Estándar (350px)</span>
+                        <span>Grande (500px)</span>
+                    </div>
+                </div>
+
+                <!-- Contenedor donde se visualiza la tarjeta a imprimir -->
+                <div id="modalPreviewContainer" class="flex justify-center py-4 bg-slate-200/50 rounded-2xl border border-dashed border-slate-300 min-h-[380px] items-center overflow-x-auto">
+                    <!-- Credencial Inyectada por JS -->
+                </div>
+
+            </div>
+
+            <!-- Modal Footer / Botones de Acción -->
+            <div class="px-6 py-4 bg-white border-t border-slate-200 flex flex-col sm:flex-row justify-end items-center gap-3 modal-no-print">
+                <button onclick="cerrarModalImpresion()" class="w-full sm:w-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition">
+                    Cancelar
+                </button>
+                <button onclick="descargarPDF()" class="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-sm flex items-center justify-center gap-2 transition">
+                    <i data-lucide="download" class="w-4 h-4"></i> Descargar PDF
+                </button>
+                <button onclick="ejecutarImpresionModal()" class="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-sm flex items-center justify-center gap-2 transition">
+                    <i data-lucide="printer" class="w-4 h-4"></i> Imprimir Credencial
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+</html>
