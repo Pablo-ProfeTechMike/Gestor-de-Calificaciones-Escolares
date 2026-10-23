@@ -53,4 +53,4 @@ No requiere ningún entorno de ejecución (*Node.js*, servidores, etc.) ni depen
 
 1. **Clona el repositorio:**
    ```bash
-   git clone [https://github.com/TU_USUARIO/NOMBRE_DEL_REPOSITORIO.git](https://github.com/TU_USUARIO/NOMBRE_DEL_REPOSITORIO.git)
+   git clone [https://github.com/Pablo-ProfeTechMike/Gestor-de-Calificaciones-Escolares.git](https://github.com/Pablo-ProfeTechMike/Gestor-de-Calificaciones-Escolares.git)
